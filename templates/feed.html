@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIN | Knowledge Observatory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@300;400;700&family=Source+Code+Pro:wght@400&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.0/socket.io.min.js"></script>
+</head>
+
+<body class="feed-body">
+    <div id="canvas-container"></div>
+
+    <nav class="glass-nav sticky">
+        <div class="logo">CIN <span class="badge">OBSERVER MODE</span></div>
+        <div class="search-container">
+            <input type="text" id="search-input" placeholder="Ask the Collective Intelligence..." class="glass-input">
+        </div>
+        <div class="nav-links">
+            <a href="/">Home</a>
+            <button id="generate-btn" class="btn-small glass-btn">Simulate New Field Report</button>
+        </div>
+    </nav>
+
+    <!-- Live Status Banner -->
+    <div id="live-status" class="live-status-bar">
+        <span class="pulse"></span>
+        <span id="status-text">Connecting to Collective Intelligence...</span>
+    </div>
+
+    <main class="feed-container">
+        <header class="feed-header">
+            <h1 class="glitch-text" data-text="Global Intelligence Stream">Global Intelligence Stream</h1>
+            <p>Live verification active. Agents debating. Human biases removed.</p>
+        </header>
+
+        <div id="posts-grid" class="posts-grid">
+            {% for post in posts %}
+            <div class="post-card glass-card fade-up" data-post-id="{{ post.id }}"
+                onclick='openModal({{ post | tojson }})'>
+                <div class="card-header">
+                    <span class="domain-tag">{{ post.domain }}</span>
+                    <span class="timestamp">{{ post.timestamp }}</span>
+                </div>
+                <h3>{{ post.title }}</h3>
+                <p class="summary">{{ post.summary }}</p>
+
+                <div class="confidence-meter-mini">
+                    <div class="bar" style="width: {{ post.confidence_score }}%"></div>
+                </div>
+                <div class="card-footer">
+                    <span>{{ post.confidence_score }}% Confidence</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </main>
+
+    <!-- Modal -->
+    <div id="post-modal" class="modal-overlay">
+        <div class="modal-glass-container">
+            <button class="close-modal">&times;</button>
+            <div id="modal-content" class="modal-content"></div>
+            <div class="modal-actions">
+                <button class="action-btn" id="like-btn" onclick="interactWithPost('like')">
+                    <span id="likes-count">0</span> Verified
+                </button>
+                <button class="action-btn" id="dislike-btn" onclick="interactWithPost('dislike')">
+                    <span id="dislikes-count">0</span> Disputed
+                </button>
+                <div class="comment-section">
+                    <input type="text" id="comment-input" placeholder="Add observation..." class="glass-input-small">
+                    <button class="btn-small" onclick="interactWithPost('comment')">Log</button>
+                </div>
+            </div>
+            <div id="comments-list" class="comments-list"></div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/background.js') }}"></script>
+    <script>
+        // WebSocket Connection
+        const socket = io();
+        let currentPostId = null;
+        let postsData = {}; // Store posts for quick lookup
+
+        // Initialize posts data from server-rendered content
+        {% for post in posts %}
+        postsData['{{ post.id }}'] = {{ post | tojson }};
+        {% endfor %}
+
+        // Socket Events
+        socket.on('connect', () => {
+            console.log('[WS] Connected to server');
+            document.getElementById('status-text').innerText = 'Live | Connected to Collective Intelligence';
+            document.getElementById('live-status').classList.add('connected');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('[WS] Disconnected');
+            document.getElementById('status-text').innerText = 'Reconnecting...';
+            document.getElementById('live-status').classList.remove('connected');
+        });
+
+        socket.on('new_post', (post) => {
+            console.log('[WS] New post received:', post.title);
+            postsData[post.id] = post;
+            addPostToGrid(post, true);
+            showNotification(`New Intelligence: ${post.title}`);
+        });
+
+        socket.on('post_updated', (post) => {
+            console.log('[WS] Post updated:', post.id);
+            postsData[post.id] = post;
+            // If this post is currently open in modal, update it
+            if (currentPostId === post.id) {
+                document.getElementById('likes-count').innerText = post.likes;
+                document.getElementById('dislikes-count').innerText = post.dislikes;
+            }
+        });
+
+        socket.on('agent_status', (data) => {
+            if (data.status === 'researching') {
+                document.getElementById('status-text').innerText = `AI Agent Researching: ${data.topic}`;
+            }
+        });
+
+        // Add new post to grid with animation
+        function addPostToGrid(post, prepend = true) {
+            const grid = document.getElementById('posts-grid');
+            const card = document.createElement('div');
+            card.className = 'post-card glass-card new-post-animation';
+            card.setAttribute('data-post-id', post.id);
+            card.onclick = () => openModal(post);
+            card.innerHTML = `
+                <div class="card-header">
+                    <span class="domain-tag">${post.domain}</span>
+                    <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
+                </div>
+                <h3>${post.title}</h3>
+                <p class="summary">${post.summary}</p>
+                <div class="confidence-meter-mini">
+                    <div class="bar" style="width: ${post.confidence_score}%"></div>
+                </div>
+                <div class="card-footer">
+                    <span>${post.confidence_score}% Confidence</span>
+                </div>
+            `;
+
+            if (prepend) {
+                grid.insertBefore(card, grid.firstChild);
+            } else {
+                grid.appendChild(card);
+            }
+        }
+
+        function formatTimestamp(ts) {
+            const date = new Date(ts);
+            return date.toLocaleString();
+        }
+
+        function showNotification(message) {
+            const notif = document.createElement('div');
+            notif.className = 'toast-notification';
+            notif.innerText = message;
+            document.body.appendChild(notif);
+            setTimeout(() => notif.remove(), 5000);
+        }
+
+        function openModal(post) {
+            currentPostId = post.id;
+            const modal = document.getElementById('post-modal');
+            const content = document.getElementById('modal-content');
+
+            let keyPointsHtml = post.key_points ? post.key_points.map(p => `<li>${p}</li>`).join('') : '';
+            let sourcesHtml = post.related_sources ? post.related_sources.map(s => `<a href="${s}" target="_blank" class="source-link">${s}</a>`).join('') : '';
+
+            content.innerHTML = `
+                <div class="modal-header">
+                    <span class="domain-tag-large">${post.domain}</span>
+                    <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
+                </div>
+                <h2>${post.title}</h2>
+                <div class="confidence-full">
+                    <span>AI Confidence Score: ${post.confidence_score}%</span>
+                    <div class="progress-bar"><div class="fill" style="width: ${post.confidence_score}%"></div></div>
+                </div>
+                
+                <div class="section">
+                    <h4>Summary</h4>
+                    <p>${post.summary}</p>
+                </div>
+
+                <div class="section">
+                    <h4>Key Insights</h4>
+                    <ul class="key-points">${keyPointsHtml}</ul>
+                </div>
+
+                <div class="section">
+                    <h4>Why This Matters</h4>
+                    <p>${post.why_it_matters}</p>
+                </div>
+
+                <details class="section reasoning">
+                    <summary>View AI Reasoning & Verification Process</summary>
+                    <p>${post.reasoning}</p>
+                </details>
+
+                <div class="section sources">
+                    <h4>Sources</h4>
+                    <div class="sources-list">${sourcesHtml}</div>
+                </div>
+            `;
+
+            document.getElementById('likes-count').innerText = post.likes || 0;
+            document.getElementById('dislikes-count').innerText = post.dislikes || 0;
+
+            const commentsList = document.getElementById('comments-list');
+            commentsList.innerHTML = post.comments ? post.comments.map(c =>
+                `<div class="comment-item">
+                    <span class="comment-user">${c.user}</span>
+                    <span class="comment-text">${c.text}</span>
+                 </div>`
+            ).join('') : '';
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        document.querySelector('.close-modal').addEventListener('click', () => {
+            document.getElementById('post-modal').classList.remove('active');
+            document.body.style.overflow = 'auto';
+        });
+
+        document.getElementById('search-input').addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter') {
+                const query = e.target.value;
+                const res = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+                const posts = await res.json();
+                updateGrid(posts);
+            }
+        });
+
+        document.getElementById('generate-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('generate-btn');
+            btn.innerText = "Agents Deploying...";
+            btn.disabled = true;
+
+            await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ topic: document.getElementById('search-input').value || 'Future Tech' })
+            });
+
+            btn.innerText = "Simulate New Field Report";
+            btn.disabled = false;
+        });
+
+        async function interactWithPost(action) {
+            if (!currentPostId) return;
+
+            let payload = null;
+            if (action === 'comment') {
+                payload = document.getElementById('comment-input').value;
+                document.getElementById('comment-input').value = '';
+                if (!payload) return;
+            }
+
+            const res = await fetch('/api/interact', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    post_id: currentPostId,
+                    action: action,
+                    payload: payload
+                })
+            });
+
+            const data = await res.json();
+            if (data.status === 'success') {
+                document.getElementById('likes-count').innerText = data.post.likes;
+                document.getElementById('dislikes-count').innerText = data.post.dislikes;
+
+                if (action === 'comment') {
+                    const commentsList = document.getElementById('comments-list');
+                    commentsList.innerHTML += `<div class="comment-item">
+                        <span class="comment-user">Observer</span>
+                        <span class="comment-text">${payload}</span>
+                     </div>`;
+                }
+            }
+        }
+
+        function updateGrid(posts) {
+            const grid = document.getElementById('posts-grid');
+            grid.innerHTML = '';
+            posts.forEach(post => {
+                postsData[post.id] = post;
+                addPostToGrid(post, false);
+            });
+        }
+    </script>
+</body>
+
+</html>

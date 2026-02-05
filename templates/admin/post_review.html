@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Flagged Posts</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: #0d1117;
+            color: #c9d1d9;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 2rem;
+        }
+
+        .header {
+            margin-bottom: 2rem;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 1rem;
+        }
+
+        .post-card {
+            background: #161b22;
+            border: 1px solid #da3633;
+            /* Red border for flagged */
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .safety-alert {
+            background: rgba(218, 54, 51, 0.1);
+            color: #ff7b72;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+
+        .actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            border-top: 1px solid #30363d;
+            padding-top: 1.5rem;
+        }
+
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            color: white;
+        }
+
+        .btn-approve {
+            background: #238636;
+        }
+
+        .btn-remove {
+            background: #da3633;
+        }
+
+        pre {
+            background: #0d1117;
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>Safety Review Queue</h1>
+        <a href="{{ url_for('admin_knowledge_agent') }}" style="color: #58a6ff;">← Back to Agent Dashboard</a>
+    </div>
+
+    {% if posts %}
+    {% for post in posts %}
+    <div class="post-card" id="post-{{ post.id }}">
+        <div class="safety-alert">
+            ⚠️ Flagged for Safety Violation (Score: {{ post.safety_score }}/100)
+        </div>
+
+        <h2>{{ post.title }}</h2>
+        <div style="margin-bottom: 1rem; color: #8b949e;">
+            Domain: {{ post.domain }} | Created: {{ post.created_at }}
+        </div>
+
+        <div style="background: #21262d; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+            <strong>Summary:</strong>
+            <p>{{ post.summary }}</p>
+        </div>
+
+        <details>
+            <summary style="cursor: pointer; color: #58a6ff;">View Full Content</summary>
+            <div style="margin-top: 1rem; line-height: 1.6;">
+                {{ post.content }}
+            </div>
+        </details>
+
+        <div class="actions">
+            <button class="btn btn-approve" onclick="actionPost({{ post.id }}, 'approve')">
+                ✓ Approve & Publish
+            </button>
+            <button class="btn btn-remove" onclick="actionPost({{ post.id }}, 'remove')">
+                ✕ Delete Permanently
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="text-align: center; padding: 4rem;">
+        <h3>Running Clean ✓</h3>
+        <p>No posts are currently flagged for review.</p>
+    </div>
+    {% endif %}
+
+    <script>
+        function actionPost(postId, action) {
+            if (!confirm(`Are you sure you want to ${action} this post?`)) return;
+
+            fetch('/api/admin/post/action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ post_id: postId, action: action })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('post-' + postId).remove();
+                        if (document.querySelectorAll('.post-card').length === 0) {
+                            location.reload();
+                        }
+                    }
+                });
+        }
+    </script>
+
+</body>
+
+</html>

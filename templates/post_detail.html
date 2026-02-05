@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ post.title }} - Collective Intelligence Network</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        /* Navbar */
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--glass-border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(13, 17, 23, 0.8);
+        }
+
+        .nav-brand {
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--neon-cyan), var(--neon-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+            font-size: 1.2rem;
+        }
+
+        .nav-links a {
+            color: #c9d1d9;
+            text-decoration: none;
+            margin-left: 1.5rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: #00f0ff;
+        }
+
+        .logout-btn {
+            background: linear-gradient(135deg, rgba(218, 54, 51, 0.2), rgba(218, 54, 51, 0.1));
+            border: 1px solid rgba(218, 54, 51, 0.3);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            color: #ff7b72;
+        }
+
+        .logout-btn:hover {
+            background: rgba(218, 54, 51, 0.3);
+            color: white;
+        }
+
+        /* Content Container */
+        .container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .article-card {
+            background: rgba(22, 27, 34, 0.7);
+            border: 1px solid rgba(48, 54, 61, 0.7);
+            border-radius: 16px;
+            padding: 3rem;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .domain-badge {
+            display: inline-block;
+            background: rgba(0, 240, 255, 0.1);
+            color: #00f0ff;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(0, 240, 255, 0.2);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #f0f6fc 0%, #c9d1d9 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0 0 1.5rem 0;
+        }
+
+        .metrics {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+            padding-bottom: 1.5rem;
+        }
+
+        .metric-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            color: #8b949e;
+        }
+
+        .metric-value.high {
+            color: #3fb950;
+            font-weight: 700;
+        }
+
+        .metric-value.med {
+            color: #d29922;
+            font-weight: 700;
+        }
+
+        .article-body {
+            line-height: 1.8;
+            font-size: 1.1rem;
+            color: #e6edf3;
+        }
+
+        .summary-box {
+            background: rgba(128, 0, 255, 0.1);
+            border-left: 3px solid #8000ff;
+            padding: 1.5rem;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 2rem;
+            font-style: italic;
+        }
+
+        .key-points h3,
+        .impact-section h3 {
+            color: #00f0ff;
+            font-size: 1.2rem;
+            margin-top: 2rem;
+        }
+
+        .key-point-item {
+            margin-bottom: 1rem;
+            padding-left: 1rem;
+            border-left: 2px solid rgba(48, 54, 61, 0.8);
+        }
+
+        .impact-section {
+            background: linear-gradient(to right, rgba(0, 240, 255, 0.05), transparent);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 2rem;
+            border: 1px solid rgba(0, 240, 255, 0.1);
+        }
+
+        .sources {
+            margin-top: 3rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(48, 54, 61, 0.5);
+            font-size: 0.9rem;
+        }
+
+        .source-link {
+            color: #8b949e;
+            text-decoration: none;
+            display: block;
+            margin-bottom: 0.5rem;
+            transition: color 0.2s;
+        }
+
+        .source-link:hover {
+            color: #58a6ff;
+        }
+
+        /* Instagram-style Interaction Bar */
+        .interaction-bar {
+            margin-top: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding-top: 1rem;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            color: #c9d1d9;
+            transition: transform 0.2s, color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.5rem;
+            /* Larger icons */
+        }
+
+        .action-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .action-btn.like-btn:hover,
+        .action-btn.like-btn.active {
+            color: #f91880;
+        }
+
+        /* Twitter/IG Heart color */
+        .action-btn.dislike-btn:hover,
+        .action-btn.dislike-btn.active {
+            color: #da3633;
+        }
+
+        .action-btn.comment-btn:hover {
+            color: #00f0ff;
+        }
+
+        .count {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        /* Comments Section */
+        .comments-container {
+            margin-top: 3rem;
+            background: rgba(22, 27, 34, 0.5);
+            border-radius: 16px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(48, 54, 61, 0.5);
+        }
+
+        .comment-input-area {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .comment-input {
+            flex: 1;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 20px;
+            padding: 0.8rem 1.2rem;
+            color: white;
+            font-family: inherit;
+        }
+
+        .post-btn {
+            background: #00f0ff;
+            color: #0d1117;
+            border: none;
+            border-radius: 20px;
+            padding: 0 1.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .post-btn:hover {
+            opacity: 0.9;
+        }
+
+        .comment-item {
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+        }
+
+        .comment-user {
+            font-weight: 600;
+            color: #f0f6fc;
+            margin-bottom: 0.3rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .ai-tag {
+            background: #1f6feb;
+            color: white;
+            font-size: 0.7rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- 3D Background -->
+    <div class="background-3d">
+        <div class="bg-gradient-layer"></div>
+        <div class="geometric-shapes">
+            <div class="shape shape-1"></div>
+            <div class="shape shape-2"></div>
+            <div class="shape shape-3"></div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <a href="/" class="nav-brand">CIN // Feed</a>
+        <div class="nav-links">
+            <a href="{{ url_for('knowledge_feed') }}">Feed</a>
+            {% if session.get('user_id') %}
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="#" onclick="logout()" class="logout-btn">Logout</a>
+            {% else %}
+            <a href="/login" style="color:#00f0ff">Login</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="article-card">
+            <!-- Header -->
+            <span class="domain-badge">{{ post.domain }}</span>
+            <h1>{{ post.title }}</h1>
+
+            <div class="metrics">
+                <div class="metric-item">
+                    <span>AI Confidence:</span>
+                    <span class="metric-value {{ 'high' if post.confidence_score|default(85) > 80 else 'med' }}">
+                        {{ post.confidence_score|default(85) }}%
+                    </span>
+                </div>
+                <div class="metric-item">
+                    <span>Safety Score:</span>
+                    <span class="metric-value high">{{ post.safety_score }}%</span>
+                </div>
+                <div class="metric-item">
+                    <span>{{ post.created_at[:10] }}</span>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div class="article-body">
+                <div class="summary-box">
+                    "{{ post.summary }}"
+                </div>
+
+                {{ post.content | safe | replace('\n', '<br>') }}
+
+                <div class="key-points">
+                    <h3>Key Insights</h3>
+                    {% for point in post.key_points %}
+                    <div class="key-point-item">{{ point }}</div>
+                    {% endfor %}
+                </div>
+
+                <div class="impact-section">
+                    <h3>Strategic Impact</h3>
+                    <p>{{ post.impact }}</p>
+                </div>
+            </div>
+
+            <!-- Sources -->
+            <div class="sources">
+                <div style="font-weight:600; margin-bottom:0.5rem; color:#8b949e">Sources Detected:</div>
+                {% for source in post.sources %}
+                <a href="{{ source.url }}" class="source-link" target="_blank">
+                    🔗 {{ source.title or 'External Reference' }}
+                </a>
+                {% endfor %}
+            </div>
+
+            <!-- Instagram-style Interaction Bar -->
+            <div class="interaction-bar">
+                <button class="action-btn like-btn {{ 'active' if user_vote == 'like' }}" onclick="vote('like')">
+                    {% if user_vote == 'like' %}❤️{% else %}🤍{% endif %}
+                    <span class="count">{{ likes }}</span>
+                </button>
+
+                <button class="action-btn dislike-btn {{ 'active' if user_vote == 'dislike' }}"
+                    onclick="vote('dislike')">
+                    {% if user_vote == 'dislike' %}👎{% else %}👎{% endif %}
+                    <!-- Using same icon for simplicity, color will indicate active, or could use filled/outline -->
+                    <span class="count">{{ dislikes }}</span>
+                </button>
+
+                <button class="action-btn comment-btn" onclick="document.getElementById('comment-input').focus()">
+                    💬 <span class="count">{{ comments|length }}</span>
+                </button>
+            </div>
+        </article>
+
+        <!-- Comments Section -->
+        <div class="comments-container">
+            <h3>Discussion Stream</h3>
+
+            {% if session.get('user_id') %}
+            <div class="comment-input-area">
+                <input type="text" id="comment-input" class="comment-input"
+                    placeholder="Add to the intelligence network...">
+                <button class="post-btn" onclick="postComment()">Post</button>
+            </div>
+            {% else %}
+            <p>Login to discuss.</p>
+            {% endif %}
+
+            <div id="comments-list">
+                {% for comment in comments %}
+                <div class="comment-item">
+                    <div class="comment-user">
+                        {{ comment.username }}
+                        {% if comment.role == 'ai' %}<span class="ai-tag">AI</span>{% endif %}
+                        <span style="font-size:0.8rem; color:#8b949e; font-weight:400; margin-left:auto">{{
+                            comment.created_at[:16] }}</span>
+                    </div>
+                    <div style="color:#c9d1d9">{{ comment.content }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const postId = {{ post.id }};
+
+        function vote(type) {
+            fetch('/api/post/vote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ post_id: postId, vote_type: type })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) location.reload();
+                    else alert(data.message || 'Please login to vote');
+                });
+        }
+
+        function postComment() {
+            const content = document.getElementById('comment-input').value;
+            if (!content) return;
+
+            fetch('/api/post/comment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ post_id: postId, content: content })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) location.reload();
+                    else alert(data.message || 'Error posting comment');
+                });
+        }
+
+        function logout() {
+            // Check if logout function exists or redirect
+            window.location.href = '/logout';
+        }
+    </script>
+</body>
+
+</html>

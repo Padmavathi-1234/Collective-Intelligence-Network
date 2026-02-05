@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #030303;
+            color: #D7DADC;
+        }
+
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 420px;
+            background: rgba(26, 26, 27, 0.95);
+            border: 1px solid #343536;
+            border-radius: 8px;
+            padding: 3rem;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .login-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: #D7DADC;
+            margin: 0 0 0.5rem 0;
+        }
+
+        .login-subtitle {
+            font-size: 0.9rem;
+            color: #818384;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #D7DADC;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: #1A1A1B;
+            border: 1px solid #343536;
+            border-radius: 4px;
+            color: #D7DADC;
+            font-size: 0.95rem;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        .form-input:focus {
+            border-color: #FF4500;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 0.875rem;
+            background: #FF4500;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-login:hover:not(:disabled) {
+            background: #FF5722;
+        }
+
+        .btn-login:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: rgba(255, 69, 0, 0.1);
+            border: 1px solid rgba(255, 69, 0, 0.3);
+            border-radius: 4px;
+            color: #FF4500;
+            font-size: 0.875rem;
+            display: none;
+        }
+
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 1.5rem;
+            color: #818384;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .back-link:hover {
+            color: #D7DADC;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 3D Background -->
+    <div class="background-3d">
+        <div class="bg-gradient-layer"></div>
+        <div class="geometric-shapes">
+            <div class="shape shape-1"></div>
+            <div class="shape shape-2"></div>
+            <div class="shape shape-3"></div>
+            <div class="shape shape-4"></div>
+        </div>
+        <div class="grid-overlay"></div>
+    </div>
+
+    <canvas id="neural-canvas"></canvas>
+
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1 class="login-title">Admin Access</h1>
+                <p class="login-subtitle">Platform Administration</p>
+            </div>
+
+            <form id="admin-login-form">
+                <div class="form-group">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" id="username" class="form-input" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" id="password" class="form-input" required>
+                </div>
+
+                <button type="submit" class="btn-login" id="login-btn">Login</button>
+
+                <div class="error-message" id="error-message"></div>
+            </form>
+
+            <a href="/" class="back-link">← Back to Home</a>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        document.getElementById('admin-login-form').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const errorMsg = document.getElementById('error-message');
+            const loginBtn = document.getElementById('login-btn');
+
+            errorMsg.style.display = 'none';
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Logging in...';
+
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.href = data.redirect;
+                } else {
+                    errorMsg.textContent = data.message;
+                    errorMsg.style.display = 'block';
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Login';
+                }
+            } catch (error) {
+                errorMsg.textContent = 'Login failed. Please try again.';
+                errorMsg.style.display = 'block';
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Login';
+            }
+        });
+    </script>
+</body>
+
+</html>

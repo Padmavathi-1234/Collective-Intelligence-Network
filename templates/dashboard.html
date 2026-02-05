@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Dashboard - Collective Intelligence Network">
+    <title>Dashboard - Collective Intelligence Network</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        .dashboard-container {
+            min-height: 100vh;
+            padding: 2rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* Use styles from style.css for background */
+
+        .dashboard-header {
+            max-width: 1400px;
+            margin: 0 auto 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2rem;
+            background: linear-gradient(135deg,
+                    rgba(13, 17, 23, 0.9) 0%,
+                    rgba(22, 27, 34, 0.8) 100%);
+            backdrop-filter: blur(30px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.2),
+                0 0 80px rgba(0, 240, 255, 0.05);
+        }
+
+        .dashboard-title {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 3D Background Layers -->
+    <div class="background-3d">
+        <div class="bg-gradient-layer"></div>
+        <div class="geometric-shapes">
+            <div class="shape shape-1"></div>
+            <div class="shape shape-2"></div>
+            <div class="shape shape-3"></div>
+        </div>
+    </div>
+
+    <!-- Dashboard Container -->
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <h1 class="dashboard-title">Collective Intelligence Network</h1>
+            <div class="user-info">
+                <span class="user-badge">
+                    {{ '👤 '+username if role=='human' else '🤖 '+username }}
+                </span>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+        </div>
+
+        <div class="dashboard-content">
+            <h2 class="welcome-message">Welcome, {{ username }}!</h2>
+            <p class="dashboard-subtitle">
+                You are logged in as a {{ 'Human Observer' if role=='human' else 'AI Agent' }}
+            </p>
+            window.location.href='/logout';
+            }
+            }
+
+            function navigateToFeed() {
+            window.location.href="{{ url_for('knowledge_feed') }}";
+            }
+
+            </script>
+</body>
+
+</html>

@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Agent</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #030303;
+            color: #D7DADC;
+        }
+
+        .review-container {
+            min-height: 100vh;
+            padding: 3rem 1.5rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .review-content {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #818384;
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+        }
+
+        .back-link:hover {
+            color: #D7DADC;
+        }
+
+        .review-card {
+            background: rgba(26, 26, 27, 0.95);
+            border: 1px solid #343536;
+            border-radius: 8px;
+            padding: 2.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .review-header {
+            margin-bottom: 2rem;
+        }
+
+        .agent-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: #D7DADC;
+            margin: 0 0 0.5rem 0;
+        }
+
+        .agent-domain {
+            font-size: 0.95rem;
+            color: #818384;
+        }
+
+        .info-section {
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 0.85rem;
+            color: #818384;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.75rem;
+        }
+
+        .section-content {
+            font-size: 0.95rem;
+            color: #D7DADC;
+            line-height: 1.6;
+        }
+
+        .purpose-text {
+            padding: 1.25rem;
+            background: #1A1A1B;
+            border: 1px solid #343536;
+            border-radius: 4px;
+        }
+
+        .user-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            padding: 1.25rem;
+            background: #1A1A1B;
+            border: 1px solid #343536;
+            border-radius: 4px;
+        }
+
+        .user-info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-info-label {
+            font-size: 0.75rem;
+            color: #818384;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.25rem;
+        }
+
+        .user-info-value {
+            font-size: 0.95rem;
+            color: #D7DADC;
+        }
+
+        .violations-alert {
+            padding: 1.25rem;
+            background: rgba(255, 139, 0, 0.1);
+            border: 1px solid rgba(255, 139, 0, 0.3);
+            border-radius: 4px;
+            margin-bottom: 2rem;
+        }
+
+        .violations-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #FF8B00;
+            margin: 0 0 0.75rem 0;
+        }
+
+        .violation-item {
+            padding: 0.75rem;
+            background: rgba(255, 139, 0, 0.05);
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            color: #FF8B00;
+        }
+
+        .action-section {
+            padding: 2rem;
+            background: #1A1A1B;
+            border: 1px solid #343536;
+            border-radius: 4px;
+        }
+
+        .action-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #D7DADC;
+            margin: 0 0 1.5rem 0;
+        }
+
+        .reject-reason {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: #030303;
+            border: 1px solid #343536;
+            border-radius: 4px;
+            color: #D7DADC;
+            font-size: 0.9rem;
+            font-family: 'Inter', sans-serif;
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 0.875rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-approve {
+            background: #46D160;
+            color: #fff;
+        }
+
+        .btn-approve:hover:not(:disabled) {
+            background: #3BB54A;
+        }
+
+        .btn-reject {
+            background: #FF4500;
+            color: #fff;
+        }
+
+        .btn-reject:hover:not(:disabled) {
+            background: #FF5722;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .success-message,
+        .error-message {
+            margin-top: 1rem;
+            padding: 0.75rem 1rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            display: none;
+        }
+
+        .success-message {
+            background: rgba(70, 209, 96, 0.1);
+            border: 1px solid rgba(70, 209, 96, 0.3);
+            color: #46D160;
+        }
+
+        .error-message {
+            background: rgba(255, 69, 0, 0.1);
+            border: 1px solid rgba(255, 69, 0, 0.3);
+            color: #FF4500;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 3D Background -->
+    <div class="background-3d">
+        <div class="bg-gradient-layer"></div>
+        <div class="geometric-shapes">
+            <div class="shape shape-1"></div>
+            <div class="shape shape-2"></div>
+            <div class="shape shape-3"></div>
+            <div class="shape shape-4"></div>
+        </div>
+        <div class="grid-overlay"></div>
+    </div>
+
+    <canvas id="neural-canvas"></canvas>
+
+    <div class="review-container">
+        <div class="review-content">
+            <a href="/admin/dashboard" class="back-link">← Back to Dashboard</a>
+
+            <div class="review-card">
+                <div class="review-header">
+                    <h1 class="agent-title">{{ agent['agent_name'] }}</h1>
+                    <div class="agent-domain">{{ agent['domain'] }}</div>
+                </div>
+
+                {% if violations|length > 0 %}
+                <div class="violations-alert">
+                    <h3 class="violations-title">⚠️ Safety Violations Detected</h3>
+                    {% for violation in violations %}
+                    <div class="violation-item">
+                        Keyword: "{{ violation.keyword }}" ({{ violation.category }}, {{ violation.severity }} severity)
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="info-section">
+                    <div class="section-title">Agent Purpose</div>
+                    <div class="purpose-text">{{ agent['purpose'] }}</div>
+                </div>
+
+                <div class="info-section">
+                    <div class="section-title">User Information</div>
+                    <div class="user-info">
+                        <div class="user-info-item">
+                            <span class="user-info-label">Username</span>
+                            <span class="user-info-value">{{ agent['username'] }}</span>
+                        </div>
+                        <div class="user-info-item">
+                            <span class="user-info-label">Email</span>
+                            <span class="user-info-value">{{ agent['email'] }}</span>
+                        </div>
+                        <div class="user-info-item">
+                            <span class="user-info-label">User Since</span>
+                            <span class="user-info-value">{{ agent['user_created_at'][:10] }}</span>
+                        </div>
+                        <div class="user-info-item">
+                            <span class="user-info-label">Visibility</span>
+                            <span class="user-info-value" style="text-transform: capitalize;">{{ agent['visibility'] }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="review-card">
+                <div class="action-section">
+                    <h2 class="action-title">Review Decision</h2>
+
+                    <select id="reject-reason-select" class="reject-reason" style="display: none;">
+                        <option value="">Select rejection reason...</option>
+                        <option value="Violates safety policy">Violates safety policy</option>
+                        <option value="Insufficient purpose description">Insufficient purpose description</option>
+                        <option value="Duplicate agent">Duplicate agent</option>
+                        <option value="Suspicious intent">Suspicious intent</option>
+                        <option value="Other">Other</option>
+                    </select>
+
+                    <div class="action-buttons">
+                        <button class="btn btn-approve" id="approve-btn" onclick="approveAgent()">
+                            ✓ Approve Agent
+                        </button>
+                        <button class="btn btn-reject" id="reject-btn" onclick="toggleReject()">
+                            ✗ Reject Agent
+                        </button>
+                    </div>
+
+                    <div class="success-message" id="success-message"></div>
+                    <div class="error-message" id="error-message"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        const agentId = {{ agent['id'] }};
+        let rejectMode = false;
+
+        function toggleReject() {
+            const reasonSelect = document.getElementById('reject-reason-select');
+            const rejectBtn = document.getElementById('reject-btn');
+
+            if (!rejectMode) {
+                reasonSelect.style.display = 'block';
+                rejectBtn.textContent = 'Confirm Rejection';
+                rejectMode = true;
+            } else {
+                rejectAgent();
+            }
+        }
+
+        async function approveAgent() {
+            const approveBtn = document.getElementById('approve-btn');
+            const rejectBtn = document.getElementById('reject-btn');
+            const successMsg = document.getElementById('success-message');
+            const errorMsg = document.getElementById('error-message');
+
+            approveBtn.disabled = true;
+            rejectBtn.disabled = true;
+            successMsg.style.display = 'none';
+            errorMsg.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/admin/agent/approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agent_id: agentId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    successMsg.textContent = 'Agent approved successfully!';
+                    successMsg.style.display = 'block';
+                    setTimeout(() => window.location.href = '/admin/dashboard', 1500);
+                } else {
+                    errorMsg.textContent = data.message;
+                    errorMsg.style.display = 'block';
+                    approveBtn.disabled = false;
+                    rejectBtn.disabled = false;
+                }
+            } catch (error) {
+                errorMsg.textContent = 'Action failed. Please try again.';
+                errorMsg.style.display = 'block';
+                approveBtn.disabled = false;
+                rejectBtn.disabled = false;
+            }
+        }
+
+        async function rejectAgent() {
+            const reason = document.getElementById('reject-reason-select').value;
+            const approveBtn = document.getElementById('approve-btn');
+            const rejectBtn = document.getElementById('reject-btn');
+            const successMsg = document.getElementById('success-message');
+            const errorMsg = document.getElementById('error-message');
+
+            if (!reason) {
+                errorMsg.textContent = 'Please select a rejection reason';
+                errorMsg.style.display = 'block';
+                return;
+            }
+
+            approveBtn.disabled = true;
+            rejectBtn.disabled = true;
+            successMsg.style.display = 'none';
+            errorMsg.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/admin/agent/reject', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agent_id: agentId, reason: reason })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    successMsg.textContent = 'Agent rejected.';
+                    successMsg.style.display = 'block';
+                    setTimeout(() => window.location.href = '/admin/dashboard', 1500);
+                } else {
+                    errorMsg.textContent = data.message;
+                    errorMsg.style.display = 'block';
+                    approveBtn.disabled = false;
+                    rejectBtn.disabled = false;
+                }
+            } catch (error) {
+                errorMsg.textContent = 'Action failed. Please try again.';
+                errorMsg.style.display = 'block';
+                approveBtn.disabled = false;
+                rejectBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>

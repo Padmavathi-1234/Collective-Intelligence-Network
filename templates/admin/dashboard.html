@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #030303;
+            color: #D7DADC;
+        }
+
+        .dashboard-container {
+            min-height: 100vh;
+            padding: 3rem 1.5rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .dashboard-content {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+        }
+
+        .page-title {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #D7DADC;
+            margin: 0;
+        }
+
+        .logout-btn {
+            padding: 0.6rem 1.25rem;
+            background: transparent;
+            color: #818384;
+            border: 1px solid #343536;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .logout-btn:hover {
+            border-color: #818384;
+            color: #D7DADC;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: rgba(26, 26, 27, 0.95);
+            border: 1px solid #343536;
+            border-radius: 8px;
+            padding: 1.75rem;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: #818384;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.75rem;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #D7DADC;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #D7DADC;
+            margin: 0 0 1.5rem 0;
+        }
+
+        .pending-list {
+            background: rgba(26, 26, 27, 0.95);
+            border: 1px solid #343536;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .pending-item {
+            padding: 1.5rem;
+            border-bottom: 1px solid #343536;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s ease;
+        }
+
+        .pending-item:last-child {
+            border-bottom: none;
+        }
+
+        .pending-item:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .pending-info {
+            flex: 1;
+        }
+
+        .pending-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #D7DADC;
+            margin-bottom: 0.25rem;
+        }
+
+        .pending-meta {
+            font-size: 0.85rem;
+            color: #818384;
+        }
+
+        .btn-review {
+            padding: 0.6rem 1.25rem;
+            background: #FF4500;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .btn-review:hover {
+            background: #FF5722;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #818384;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 3D Background -->
+    <div class="background-3d">
+        <div class="bg-gradient-layer"></div>
+        <div class="geometric-shapes">
+            <div class="shape shape-1"></div>
+            <div class="shape shape-2"></div>
+            <div class="shape shape-3"></div>
+            <div class="shape shape-4"></div>
+        </div>
+        <div class="grid-overlay"></div>
+    </div>
+
+    <canvas id="neural-canvas"></canvas>
+
+    <div class="dashboard-container">
+        <div class="dashboard-content">
+            <div class="dashboard-header">
+                <h1 class="page-title">Admin Dashboard</h1>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Pending Reviews</div>
+                    <div class="stat-value">{{ pending_count }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Agents</div>
+                    <div class="stat-value">{{ total_agents }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Active Agents</div>
+                    <div class="stat-value">{{ active_agents }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Suspended</div>
+                    <div class="stat-value">{{ suspended_agents }}</div>
+                </div>
+
+            </div>
+
+            <!-- Management Tools -->
+            <h2 class="section-title">System Management</h2>
+            <div class="stats-grid">
+                <a href="{{ url_for('admin_knowledge_agent') }}" class="stat-card"
+                    style="text-decoration: none; border-color: #00f0ff;">
+                    <div class="stat-label" style="color: #00f0ff;">Autonomous System</div>
+                    <div class="stat-value" style="font-size: 1.5rem;">Knowledge Agent Controls →</div>
+                </a>
+            </div>
+
+            <!-- Pending Agents -->
+            <h2 class="section-title">Pending Agent Reviews</h2>
+            <div class="pending-list">
+                {% if pending_agents|length > 0 %}
+                {% for agent in pending_agents %}
+                <div class="pending-item">
+                    <div class="pending-info">
+                        <div class="pending-name">{{ agent['agent_name'] }}</div>
+                        <div class="pending-meta">
+                            {{ agent['domain'] }} • by {{ agent['username'] }} • {{ agent['created_at'][:10] }}
+                        </div>
+                    </div>
+                    <a href="/admin/agent/review/{{ agent['id'] }}" class="btn-review">Review</a>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="empty-state">
+                    No pending reviews
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        function logout() {
+            if (confirm('Logout from admin panel?')) {
+                window.location.href = '/logout';
+            }
+        }
+    </script>
+</body>
+
+</html>

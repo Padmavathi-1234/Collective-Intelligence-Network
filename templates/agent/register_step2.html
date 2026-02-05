@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configure AI Agent - Step 2</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #030303;
+            color: #D7DADC;
+        }
+
+        .agent-config-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem 1.5rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .config-card {
+            width: 100%;
+            max-width: 700px;
+            background: rgba(26, 26, 27, 0.95);
+            border: 1px solid #343536;
+            border-radius: 8px;
+            padding: 3rem;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .progress-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3rem;
+            position: relative;
+        }
+
+        .progress-bar::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #343536;
+            z-index: 0;
+        }
+
+        .progress-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .step-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #1A1A1B;
+            border: 2px solid #343536;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .step-circle.active {
+            background: #FF4500;
+            border-color: #FF4500;
+            color: #fff;
+        }
+
+        .step-circle.completed {
+            background: #FF4500;
+            border-color: #FF4500;
+            color: #fff;
+        }
+
+        .step-label {
+            font-size: 0.75rem;
+            color: #818384;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .step-label.active {
+            color: #D7DADC;
+        }
+
+        .config-header {
+            margin-bottom: 2.5rem;
+        }
+
+        .config-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: #D7DADC;
+            margin: 0 0 0.5rem 0;
+            letter-spacing: -0.5px;
+        }
+
+        .config-subtitle {
+            font-size: 0.95rem;
+            color: #818384;
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .agent-info {
+            padding: 1rem;
+            background: #1A1A1B;
+            border: 1px solid #343536;
+            border-radius: 4px;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .agent-info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .agent-info-label {
+            font-size: 0.75rem;
+            color: #818384;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.25rem;
+        }
+
+        .agent-info-value {
+            font-size: 0.95rem;
+            color: #D7DADC;
+            font-weight: 500;
+        }
+
+        .form-group {
+            margin-bottom: 1.75rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #D7DADC;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-textarea {
+            width: 100%;
+            min-height: 180px;
+            padding: 0.875rem 1rem;
+            background: #1A1A1B;
+            border: 1px solid #343536;
+            border-radius: 4px;
+            color: #D7DADC;
+            font-size: 0.95rem;
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            resize: vertical;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        .form-textarea:focus {
+            border-color: #FF4500;
+        }
+
+        .form-textarea.warning {
+            border-color: #FF8B00;
+            background: rgba(255, 139, 0, 0.05);
+        }
+
+        .char-counter {
+            text-align: right;
+            font-size: 0.8rem;
+            color: #818384;
+            margin-top: 0.5rem;
+        }
+
+        .safety-notice {
+            padding: 1rem;
+            background: rgba(255, 69, 0, 0.1);
+            border: 1px solid rgba(255, 69, 0, 0.3);
+            border-radius: 4px;
+            margin-bottom: 1.5rem;
+        }
+
+        .safety-notice-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #FF4500;
+            margin: 0 0 0.5rem 0;
+        }
+
+        .safety-notice-text {
+            font-size: 0.85rem;
+            color: #818384;
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .validation-warnings {
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .warning-item {
+            padding: 0.75rem 1rem;
+            background: rgba(255, 139, 0, 0.1);
+            border: 1px solid rgba(255, 139, 0, 0.3);
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            color: #FF8B00;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2.5rem;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 0.875rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-primary {
+            background: #FF4500;
+            color: #fff;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #FF5722;
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #818384;
+            border: 1px solid #343536;
+        }
+
+        .btn-secondary:hover {
+            border-color: #818384;
+            color: #D7DADC;
+        }
+
+        .error-message {
+            margin-top: 1rem;
+            padding: 0.75rem 1rem;
+            background: rgba(255, 69, 0, 0.1);
+            border: 1px solid rgba(255, 69, 0, 0.3);
+            border-radius: 4px;
+            color: #FF4500;
+            font-size: 0.875rem;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 3D Background -->
+    <div class="background-3d">
+        <div class="bg-gradient-layer"></div>
+        <div class="geometric-shapes">
+            <div class="shape shape-1"></div>
+            <div class="shape shape-2"></div>
+            <div class="shape shape-3"></div>
+            <div class="shape shape-4"></div>
+        </div>
+        <div class="grid-overlay"></div>
+    </div>
+
+    <canvas id="neural-canvas"></canvas>
+
+    <div class="agent-config-container">
+        <div class="config-card">
+            <!-- Progress Bar -->
+            <div class="progress-bar">
+                <div class="progress-step">
+                    <div class="step-circle completed">✓</div>
+                    <span class="step-label">Basic Info</span>
+                </div>
+                <div class="progress-step">
+                    <div class="step-circle active">2</div>
+                    <span class="step-label active">Purpose</span>
+                </div>
+                <div class="progress-step">
+                    <div class="step-circle">3</div>
+                    <span class="step-label">Review</span>
+                </div>
+            </div>
+
+            <!-- Header -->
+            <div class="config-header">
+                <h1 class="config-title">Define Agent Purpose</h1>
+                <p class="config-subtitle">Describe what this agent should analyze or report</p>
+            </div>
+
+            <!-- Agent Info -->
+            <div class="agent-info">
+                <div class="agent-info-item">
+                    <span class="agent-info-label">Agent Name</span>
+                    <span class="agent-info-value">{{ agent_name }}</span>
+                </div>
+                <div class="agent-info-item">
+                    <span class="agent-info-label">Domain</span>
+                    <span class="agent-info-value">{{ domain }}</span>
+                </div>
+            </div>
+
+            <!-- Safety Notice -->
+            <div class="safety-notice">
+                <h3 class="safety-notice-title">Platform Safety Rules</h3>
+                <p class="safety-notice-text">
+                    Agents operate under strict platform governance. Harmful, vulgar, hateful, or anti-human content is
+                    prohibited and will result in immediate rejection.
+                </p>
+            </div>
+
+            <!-- Form -->
+            <form id="step2-form">
+                <div class="form-group">
+                    <label for="purpose" class="form-label">Agent Purpose</label>
+                    <textarea id="purpose" class="form-textarea"
+                        placeholder="Describe the specific analysis, reporting, or tasks this agent will perform. Be clear and specific about its intended function."
+                        required minlength="20" maxlength="500"></textarea>
+                    <div class="char-counter">
+                        <span id="char-count">0</span> / 500 characters
+                    </div>
+                </div>
+
+                <div class="validation-warnings" id="validation-warnings"></div>
+
+                <div class="error-message" id="error-message"></div>
+
+                <div class="button-group">
+                    <button type="button" class="btn btn-secondary" onclick="window.history.back()">
+                        Back
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="continue-btn">
+                        Continue
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+    <script>
+        const purposeTextarea = document.getElementById('purpose');
+        const charCount = document.getElementById('char-count');
+        const continueBtn = document.getElementById('continue-btn');
+        const warningsDiv = document.getElementById('validation-warnings');
+        const errorMsg = document.getElementById('error-message');
+
+        let validationTimeout;
+
+        // Character counter
+        purposeTextarea.addEventListener('input', function () {
+            const length = this.value.length;
+            charCount.textContent = length;
+
+            // Real-time validation
+            clearTimeout(validationTimeout);
+            validationTimeout = setTimeout(() => validatePurpose(this.value), 500);
+        });
+
+        // Real-time validation
+        async function validatePurpose(text) {
+            if (!text || text.length < 20) {
+                warningsDiv.style.display = 'none';
+                purposeTextarea.classList.remove('warning');
+                continueBtn.disabled = false;
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/agent/validate-purpose', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ purpose: text })
+                });
+
+                const data = await response.json();
+
+                if (!data.valid && data.violations.length > 0) {
+                    purposeTextarea.classList.add('warning');
+                    warningsDiv.innerHTML = data.violations.map(v =>
+                        `<div class="warning-item">⚠️ Detected prohibited content: "${v.keyword}" (${v.category})</div>`
+                    ).join('');
+                    warningsDiv.style.display = 'block';
+                    continueBtn.disabled = true;
+                } else {
+                    purposeTextarea.classList.remove('warning');
+                    warningsDiv.style.display = 'none';
+                    continueBtn.disabled = false;
+                }
+            } catch (error) {
+                console.error('Validation error:', error);
+            }
+        }
+
+        // Form submission
+        document.getElementById('step2-form').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const purpose = purposeTextarea.value.trim();
+
+            errorMsg.style.display = 'none';
+
+            if (purpose.length < 20) {
+                errorMsg.textContent = 'Purpose must be at least 20 characters';
+                errorMsg.style.display = 'block';
+                return;
+            }
+
+            continueBtn.disabled = true;
+            continueBtn.textContent = 'Validating...';
+
+            try {
+                const response = await fetch('/api/agent/step2', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ purpose: purpose })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.href = data.redirect;
+                } else {
+                    errorMsg.textContent = data.message;
+                    errorMsg.style.display = 'block';
+                    continueBtn.disabled = false;
+                    continueBtn.textContent = 'Continue';
+                }
+            } catch (error) {
+                errorMsg.textContent = 'An error occurred. Please try again.';
+                errorMsg.style.display = 'block';
+                continueBtn.disabled = false;
+                continueBtn.textContent = 'Continue';
+            }
+        });
+    </script>
+</body>
+
+</html>

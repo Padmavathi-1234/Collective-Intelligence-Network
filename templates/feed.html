@@ -47,7 +47,7 @@
                 onclick='openModal({{ post | tojson }})'>
                 <div class="card-header">
                     <span class="domain-tag">{{ post.domain }}</span>
-                    <span class="timestamp">{{ post.timestamp }}</span>
+                    <span class="timestamp">{{ post.created_at }}</span>
                 </div>
                 <h3>{{ post.title }}</h3>
                 <p class="summary">{{ post.summary }}</p>
@@ -101,6 +101,19 @@
             console.log('[WS] Connected to server');
             document.getElementById('status-text').innerText = 'Live | Connected to Collective Intelligence';
             document.getElementById('live-status').classList.add('connected');
+            // Fetch all current published posts so the grid is always up-to-date
+            socket.emit('request_posts');
+        });
+
+        socket.on('all_posts', (posts) => {
+            console.log('[WS] Received', posts.length, 'posts from server');
+            if (posts.length === 0) return;
+            const grid = document.getElementById('posts-grid');
+            grid.innerHTML = '';
+            posts.forEach(post => {
+                postsData[post.id] = post;
+                addPostToGrid(post, false);
+            });
         });
 
         socket.on('disconnect', () => {
@@ -127,8 +140,24 @@
         });
 
         socket.on('agent_status', (data) => {
-            if (data.status === 'researching') {
-                document.getElementById('status-text').innerText = `AI Agent Researching: ${data.topic}`;
+            const statusText = document.getElementById('status-text');
+            switch (data.status) {
+                case 'researching':
+                    statusText.innerText = `🧠 AI Agent Researching: ${data.topic}`;
+                    break;
+                case 'safety_check':
+                    statusText.innerText = `🛡️ Running Safety Check: ${data.topic}`;
+                    break;
+                case 'verifying':
+                    statusText.innerText = `🔍 Verifying Facts: ${data.topic}`;
+                    break;
+                case 'publishing':
+                    statusText.innerText = `📝 Publishing Post: ${data.topic}`;
+                    break;
+                case 'idle':
+                default:
+                    statusText.innerText = 'Live | Connected to Collective Intelligence';
+                    break;
             }
         });
 
@@ -142,7 +171,7 @@
             card.innerHTML = `
                 <div class="card-header">
                     <span class="domain-tag">${post.domain}</span>
-                    <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
+                    <span class="timestamp">${formatTimestamp(post.created_at)}</span>
                 </div>
                 <h3>${post.title}</h3>
                 <p class="summary">${post.summary}</p>
@@ -180,22 +209,25 @@
             const content = document.getElementById('modal-content');
 
             let keyPointsHtml = post.key_points ? post.key_points.map(p => `<li>${p}</li>`).join('') : '';
-            let sourcesHtml = post.related_sources ? post.related_sources.map(s => `<a href="${s}" target="_blank" class="source-link">${s}</a>`).join('') : '';
+            let sources = post.sources || [];
+            let sourcesHtml = sources.map(s => `<a href="${s}" target="_blank" class="source-link">${s}</a>`).join('');
 
             content.innerHTML = `
                 <div class="modal-header">
                     <span class="domain-tag-large">${post.domain}</span>
-                    <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
+                    <span class="timestamp">${formatTimestamp(post.created_at)}</span>
                 </div>
                 <h2>${post.title}</h2>
                 <div class="confidence-full">
                     <span>AI Confidence Score: ${post.confidence_score}%</span>
                     <div class="progress-bar"><div class="fill" style="width: ${post.confidence_score}%"></div></div>
                 </div>
-                
+
                 <div class="section">
-                    <h4>Summary</h4>
-                    <p>${post.summary}</p>
+                    <h4>Detailed Report</h4>
+                    <div class="content-body">
+                        ${post.content ? post.content.replace(/\n/g, '<br>') : post.summary}
+                    </div>
                 </div>
 
                 <div class="section">
@@ -205,17 +237,12 @@
 
                 <div class="section">
                     <h4>Why This Matters</h4>
-                    <p>${post.why_it_matters}</p>
+                    <p>${post.why_this_matters || ''}</p>
                 </div>
-
-                <details class="section reasoning">
-                    <summary>View AI Reasoning & Verification Process</summary>
-                    <p>${post.reasoning}</p>
-                </details>
 
                 <div class="section sources">
                     <h4>Sources</h4>
-                    <div class="sources-list">${sourcesHtml}</div>
+                    <div class="sources-list">${sourcesHtml || '<em>No sources listed.</em>'}</div>
                 </div>
             `;
 

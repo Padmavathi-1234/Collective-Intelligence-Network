@@ -113,42 +113,77 @@ def check_ollama():
 
 def setup_env():
     print_header("Step 4: Environment Configuration")
-    
-    print("\n--- CIN Configuration ---")
-    print("\nThe Ollama API Key is required for AI post generation.")
-    print("You can get your API key from: https://ollama.ai/account/api-keys")
-    
-    # Ollama API Key (required for cloud features)
-    while True:
-        api_key = input("\nEnter your Ollama API Key: ").strip()
-        if api_key:
-            break
-        print("⚠️  API Key is required for AI generation features.")
-        skip = input("Continue without API key? (y/n) [n]: ").strip().lower() or 'n'
-        if skip == 'y':
-            api_key = ""
-            break
-    
-    # Secret Key for Flask
+
+    if os.path.exists(ENV_FILE):
+        logger.info(f"✅ Environment file '{ENV_FILE}' already exists.")
+        overwrite = input("Overwrite existing .env? (y/n) [n]: ").strip().lower() or 'n'
+        if overwrite != 'y':
+            return
+
     import secrets
+    print("\n--- CIN Configuration ---\n")
+
+    # ── Flask Secret Key ──────────────────────────────────────────────────────
     secret_key = secrets.token_hex(32)
-    
-    # Write .env file
-    with open(ENV_FILE, "w") as f:
-        f.write("# CIN - Collective Intelligence Network Configuration\n")
-        f.write(f"OLLAMA_API_KEY={api_key}\n")
+
+    # ── Webhook Secret ────────────────────────────────────────────────────────
+    webhook_secret = input("Webhook Secret [cin-webhook-secret-2026-change-me-in-production]: ").strip()
+    if not webhook_secret:
+        webhook_secret = "cin-webhook-secret-2026-change-me-in-production"
+
+    # ── Server Configuration ──────────────────────────────────────────────────
+    host = input("Server Host [0.0.0.0]: ").strip() or "0.0.0.0"
+    port = input("Server Port [5000]: ").strip() or "5000"
+    flask_debug = input("Enable Flask Debug? (True/False) [True]: ").strip() or "True"
+
+    # ── Ollama Configuration ──────────────────────────────────────────────────
+    print("\nOllama is used for AI post generation.")
+    print("Make sure Ollama is running locally (https://ollama.ai/download).\n")
+    ollama_base_url = input("Ollama Base URL [http://localhost:11434]: ").strip()
+    if not ollama_base_url:
+        ollama_base_url = "http://localhost:11434"
+    ollama_model = input("Ollama Model [llama3.2]: ").strip() or "llama3.2"
+
+    # ── Reddit API ────────────────────────────────────────────────────────────
+    print("\nReddit API credentials are needed for the feed collector.")
+    print("Register an app at: https://www.reddit.com/prefs/apps\n")
+    reddit_client_id = input("Reddit Client ID [YOUR_REDDIT_CLIENT_ID]: ").strip() or "YOUR_REDDIT_CLIENT_ID"
+    reddit_client_secret = input("Reddit Client Secret [YOUR_REDDIT_CLIENT_SECRET]: ").strip() or "YOUR_REDDIT_CLIENT_SECRET"
+    reddit_user_agent = input("Reddit User Agent [CIN-FeedCollector/1.0 by YourUsername]: ").strip()
+    if not reddit_user_agent:
+        reddit_user_agent = "CIN-FeedCollector/1.0 by YourUsername"
+
+    # ── Feed Collector Settings ───────────────────────────────────────────────
+    feed_interval = input("Feed poll interval in minutes [10]: ").strip() or "10"
+    webhook_url = input(f"Internal Webhook URL [http://localhost:{port}/webhook/update]: ").strip()
+    if not webhook_url:
+        webhook_url = f"http://localhost:{port}/webhook/update"
+
+    # ── Write .env ────────────────────────────────────────────────────────────
+    with open(ENV_FILE, "w", encoding="utf-8") as f:
+        f.write("# CIN - Collective Intelligence Network Configuration\n\n")
         f.write(f"SECRET_KEY={secret_key}\n")
-        f.write("\n# Server Configuration\n")
-        f.write("FLASK_DEBUG=True\n")
-        f.write("HOST=0.0.0.0\n")
-        f.write("PORT=5000\n")
-    
-    logger.info(f"✅ Environment file '{ENV_FILE}' created with API key.")
-    
-    if api_key:
-        print("\n✅ API Key stored securely in .env file")
-    else:
-        print("\n⚠️  No API key stored. AI generation may not work.")
+        f.write(f"\n# ─── Webhook Security ─────────────────────────────────────────────────────────\n")
+        f.write(f"# Token that external sources must send in the X-Webhook-Token header\n")
+        f.write(f"WEBHOOK_SECRET={webhook_secret}\n")
+        f.write(f"\n# ─── Server Configuration ─────────────────────────────────────────────────────\n")
+        f.write(f"FLASK_DEBUG={flask_debug}\n")
+        f.write(f"HOST={host}\n")
+        f.write(f"PORT={port}\n")
+        f.write(f"\n# ─── Ollama Configuration ─────────────────────────────────────────────────────\n")
+        f.write(f"OLLAMA_BASE_URL={ollama_base_url}\n")
+        f.write(f"OLLAMA_MODEL={ollama_model}\n")
+        f.write(f"\n# ─── Reddit API (register at https://www.reddit.com/prefs/apps) ───────────────\n")
+        f.write(f"REDDIT_CLIENT_ID={reddit_client_id}\n")
+        f.write(f"REDDIT_CLIENT_SECRET={reddit_client_secret}\n")
+        f.write(f"REDDIT_USER_AGENT={reddit_user_agent}\n")
+        f.write(f"\n# ─── Feed Collector Settings ──────────────────────────────────────────────────\n")
+        f.write(f"# How often (in minutes) the feed collector polls sources\n")
+        f.write(f"FEED_POLL_INTERVAL_MINUTES={feed_interval}\n")
+        f.write(f"WEBHOOK_URL={webhook_url}\n")
+
+    logger.info(f"✅ Environment file '{ENV_FILE}' created successfully.")
+    print("\n✅ Configuration saved to .env")
 
 def init_posts_file():
     print_header("Step 5: Data Initialization")

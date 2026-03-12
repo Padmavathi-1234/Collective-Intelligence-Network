@@ -52,11 +52,16 @@
                 <h3>{{ post.title }}</h3>
                 <p class="summary">{{ post.summary }}</p>
 
-                <div class="confidence-meter-mini">
-                    <div class="bar" style="width: {{ post.confidence_score }}%"></div>
-                </div>
-                <div class="card-footer">
-                    <span>{{ post.confidence_score }}% Confidence</span>
+                <div class="card-footer-row">
+                    <div class="verification-badge badge-{{ post.verification_status or 'pending' }}">
+                        {{ (post.verification_status or 'pending') | upper }}
+                        <span class="verification-score">{{ "%.0f" | format((post.verification_score or 0) * 100) }}%</span>
+                    </div>
+                    {% if post.agent_analyses and post.agent_analyses | length > 0 %}
+                    <div class="agents-badge">
+                        🤖 {{ post.agent_analyses | map(attribute='model') | join(', ') }}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}
@@ -162,12 +167,25 @@
         });
 
         // Add new post to grid with animation
+        function getVerificationClass(status) {
+            if (status === 'verified') return 'badge-verified';
+            if (status === 'moderate') return 'badge-moderate';
+            if (status === 'rejected') return 'badge-rejected';
+            return 'badge-pending';
+        }
+
         function addPostToGrid(post, prepend = true) {
             const grid = document.getElementById('posts-grid');
             const card = document.createElement('div');
             card.className = 'post-card glass-card new-post-animation';
             card.setAttribute('data-post-id', post.id);
             card.onclick = () => openModal(post);
+            const vStatus = post.verification_status || 'pending';
+            const vScore = Math.round((post.verification_score || 0) * 100);
+            const agentCount = (post.agent_analyses || []).length;
+            const agentBadge = agentCount > 0
+                ? `<div class="agents-badge">🤖 ${(post.agent_analyses || []).map(a => a.model).join(', ')}</div>`
+                : '';
             card.innerHTML = `
                 <div class="card-header">
                     <span class="domain-tag">${post.domain}</span>
@@ -175,11 +193,12 @@
                 </div>
                 <h3>${post.title}</h3>
                 <p class="summary">${post.summary}</p>
-                <div class="confidence-meter-mini">
-                    <div class="bar" style="width: ${post.confidence_score}%"></div>
-                </div>
-                <div class="card-footer">
-                    <span>${post.confidence_score}% Confidence</span>
+                <div class="card-footer-row">
+                    <div class="verification-badge ${getVerificationClass(vStatus)}">
+                        ${vStatus.toUpperCase().replace('_', ' ')}
+                        <span class="verification-score">${vScore}%</span>
+                    </div>
+                    ${agentBadge}
                 </div>
             `;
 
@@ -203,6 +222,48 @@
             setTimeout(() => notif.remove(), 5000);
         }
 
+        function buildAgentAnalysesSection(analyses) {
+            if (!analyses || analyses.length === 0) return '';
+            const cards = analyses.map((agent, idx) => {
+                const kpHtml = (agent.key_points || []).map(p => `<li>${p}</li>`).join('');
+                const isPrimary = idx === 0;
+                return `
+                    <div class="agent-analysis-card ${isPrimary ? 'primary-agent' : ''}">
+                        <div class="agent-header">
+                            <div class="agent-identity">
+                                <span class="agent-icon">🤖</span>
+                                <span class="agent-role">${agent.role || 'AI Agent'}</span>
+                                ${isPrimary ? '<span class="primary-badge">PRIMARY</span>' : ''}
+                            </div>
+                            <div class="agent-model-badge">
+                                <span class="model-label">Model:</span>
+                                <span class="model-name">${agent.model || 'Unknown'}</span>
+                            </div>
+                        </div>
+                        <div class="agent-confidence">
+                            <div class="confidence-bar">
+                                <div class="confidence-fill" style="width: ${agent.confidence_score || 0}%"></div>
+                            </div>
+                            <span class="confidence-value">${agent.confidence_score || 0}% confidence</span>
+                        </div>
+                        <div class="agent-summary">
+                            <p>${agent.summary || ''}</p>
+                        </div>
+                        ${kpHtml ? `<ul class="agent-key-points">${kpHtml}</ul>` : ''}
+                        ${agent.why_this_matters ? `<p class="agent-wtm"><strong>Why it matters:</strong> ${agent.why_this_matters}</p>` : ''}
+                    </div>
+                `;
+            }).join('');
+            return `
+                <div class="section agent-analyses-section">
+                    <h4>🧠 Multi-Agent Analyses <span class="agent-count-label">${analyses.length} perspectives</span></h4>
+                    <div class="agent-analyses-grid">
+                        ${cards}
+                    </div>
+                </div>
+            `;
+        }
+
         function openModal(post) {
             currentPostId = post.id;
             const modal = document.getElementById('post-modal');
@@ -218,9 +279,13 @@
                     <span class="timestamp">${formatTimestamp(post.created_at)}</span>
                 </div>
                 <h2>${post.title}</h2>
-                <div class="confidence-full">
-                    <span>AI Confidence Score: ${post.confidence_score}%</span>
-                    <div class="progress-bar"><div class="fill" style="width: ${post.confidence_score}%"></div></div>
+                <div class="verification-info">
+                    <div class="verification-badge-large ${getVerificationClass(post.verification_status || 'pending')}">
+                        Verification: ${(post.verification_status || 'PENDING').toUpperCase().replace('_', ' ')}
+                    </div>
+                    <div class="verification-details">
+                        <span>Verification Score: ${Math.round((post.verification_score || 0) * 100)}%</span>
+                    </div>
                 </div>
 
                 <div class="section">
@@ -239,6 +304,8 @@
                     <h4>Why This Matters</h4>
                     <p>${post.why_this_matters || ''}</p>
                 </div>
+
+                ${buildAgentAnalysesSection(post.agent_analyses || [])}
 
                 <div class="section sources">
                     <h4>Sources</h4>

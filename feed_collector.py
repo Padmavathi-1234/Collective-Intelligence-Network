@@ -106,11 +106,15 @@ def collect_rss() -> Iterator[dict]:
     """Yield webhook payloads from all RSS sources."""
     for url, domain in RSS_SOURCES:
         try:
-            feed = feedparser.parse(url)
+            resp = requests.get(url, timeout=15)
+            resp.raise_for_status()
+            feed = feedparser.parse(resp.content)
             for entry in feed.entries[:5]:   # top 5 per feed per cycle
                 payload = _parse_rss_entry(entry, domain)
                 if payload:
                     yield payload
+        except requests.exceptions.RequestException as e:
+            logger.warning("[RSS] Request error for %s: %s", url, e)
         except Exception as e:
             logger.warning("[RSS] Error parsing %s: %s", url, e)
 
@@ -219,7 +223,9 @@ def _try_nitter_feed(path: str, domain: str) -> Iterator[dict]:
     for instance in NITTER_INSTANCES:
         url = f"{instance}{path}"
         try:
-            feed = feedparser.parse(url)
+            resp = requests.get(url, timeout=15)
+            resp.raise_for_status()
+            feed = feedparser.parse(resp.content)
             if not feed.entries:
                 continue
             for entry in feed.entries[:3]:
@@ -245,6 +251,8 @@ def _try_nitter_feed(path: str, domain: str) -> Iterator[dict]:
                     "timestamp": ts,
                 }
             break   # success — don't try other instances
+        except requests.exceptions.RequestException:
+            continue
         except Exception:
             continue   # try next instance
 

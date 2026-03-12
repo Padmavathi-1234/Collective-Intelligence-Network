@@ -1,13 +1,12 @@
 """
 agent/controller.py – Orchestrates the full AI agent pipeline.
 
-Pipeline:
-    1. Generate structured post via Ollama (generator.py)
-    2. Run safety filter on generated text (utils/safety.py)
-    3. Verify post is grounded in source data (verifier.py)
-    4. Determine final status: 'published' or 'rejected'
-    5. Save to database (database.py)
-    6. Return result dict
+Pipeline (Multi-Agent – Independent Posts):
+    1. Run multiple AI agents in parallel via Groq (multi_agent.py)
+    2. Run safety filter on EACH agent's output
+    3. Each safe agent creates its OWN separate post in the DB
+    4. All posts are broadcast via WebSocket simultaneously
+    5. Return combined result dict
 
 Agent Gate:
     The controller does NOT manage the ready/busy gate — that is the
@@ -23,7 +22,7 @@ import uuid
 import logging
 from datetime import datetime, timezone
 
-from agent import generator, verifier
+from agent import multi_agent
 from utils import safety
 import database
 
@@ -51,7 +50,10 @@ def _broadcast_agent_status(status: str, topic: str = "") -> None:
 
 def run_agent_pipeline(payload: dict, post_id: str | None = None) -> dict:
     """
-    Run the full agent pipeline for a validated webhook payload.
+    Run the full multi-agent pipeline for a validated webhook payload.
+
+    Each agent's result becomes its own separate post in the database
+    and is broadcast to the frontend independently.
 
     Args:
         payload: Validated webhook payload (domain, headline, content,
@@ -60,74 +62,141 @@ def run_agent_pipeline(payload: dict, post_id: str | None = None) -> dict:
                  saved). If None, a new UUID is generated.
 
     Returns:
-        dict with keys: status, post_id, message, post (optional),
+        dict with keys: status, post_ids, message, agents_count,
                         duration_seconds
     """
     start_time = datetime.now(timezone.utc)
-    post_id    = post_id or str(uuid.uuid4())
-    headline   = payload.get("headline", "")
+    primary_post_id = post_id or str(uuid.uuid4())
+    headline = payload.get("headline", "")
 
     logger.info(
-        "[Controller] ▶ Pipeline started | post_id=%s | headline=%s",
-        post_id, headline[:80],
+        "[Controller] ▶ Pipeline started | primary_post_id=%s | headline=%s",
+        primary_post_id, headline[:80],
     )
 
-    # ── Step 1: Generate ──────────────────────────────────────────────────────
-    logger.info("[Controller] 💭 Thinking... Generating structured post for: %s", headline[:60])
+    # ── Step 1: Multi-Agent Generation ────────────────────────────────────────
+    logger.info("[Controller] 🧠 Dispatching multi-agent analysis for: %s", headline[:60])
     _broadcast_agent_status('researching', headline[:80])
-    generated = generator.generate_post(payload)
-    if not generated:
-        logger.error("[Controller] ❌ Generation failed")
-        _broadcast_agent_status('idle')
-        return _reject(post_id, payload, "AI generation failed.", start_time)
+    agent_results = multi_agent.run_multi_agent(payload)
 
-    # ── Step 2: Safety Filter ─────────────────────────────────────────────────
-    logger.info("[Controller] 🛡️ Running safety check...")
+    if not agent_results:
+        logger.error("[Controller] ❌ All agents failed — no results returned")
+        _broadcast_agent_status('idle')
+        return _reject(primary_post_id, payload, "All AI agents failed to generate analysis.", start_time)
+
+    logger.info(
+        "[Controller] 📊 Received %d agent analyses", len(agent_results),
+    )
+
+    # ── Step 2: Safety Filter (per-agent) ─────────────────────────────────────
+    logger.info("[Controller] 🛡️ Running safety checks on each agent output...")
     _broadcast_agent_status('safety_check', headline[:80])
-    check_text = safety.build_check_text(generated)
-    is_safe, safety_reason = safety.run_safety_filter(check_text)
-    if not is_safe:
-        logger.warning("[Controller] ❌ Safety check failed: %s", safety_reason)
+
+    safe_results = []
+    for result in agent_results:
+        check_text = safety.build_check_text(result)
+        is_safe, safety_reason = safety.run_safety_filter(check_text)
+        if is_safe:
+            safe_results.append(result)
+        else:
+            logger.warning(
+                "[Controller] ⚠️ Agent '%s' (%s) output blocked by safety filter: %s",
+                result.get("role"), result.get("model"), safety_reason,
+            )
+
+    if not safe_results:
+        logger.warning("[Controller] ❌ All agent outputs failed safety filter")
         _broadcast_agent_status('idle')
-        return _reject(post_id, payload, safety_reason, start_time,
-                       generated=generated)
+        return _reject(
+            primary_post_id, payload,
+            "All AI agent outputs were blocked by the safety filter.",
+            start_time,
+            agent_analyses=agent_results,
+        )
 
-    # ── Step 3: Verify (SKIPPED — llama3.2 rejects too aggressively) ──────────
-    # Verification is disabled for now. The keyword-based safety filter above
-    # still guards against harmful content.
-
-    # ── Step 4: Publish ───────────────────────────────────────────────────────
-    logger.info("[Controller] 📝 Publishing post...")
+    # ── Step 3: Create Separate Post per Agent ────────────────────────────────
+    logger.info(
+        "[Controller] 📝 Publishing %d separate posts (one per agent)...",
+        len(safe_results),
+    )
     _broadcast_agent_status('publishing', headline[:80])
-    updates = {
-        "title":            generated["title"],
-        "domain":           generated.get("domain", payload.get("domain", "General")),
-        "summary":          generated["summary"],
-        "content":          generated.get("content", ""),
-        "key_points":       generated.get("key_points", []),
-        "why_this_matters": generated.get("why_this_matters", ""),
-        "sources":          generated.get("sources", payload.get("sources", [])),
-        "confidence_score": generated.get("confidence_score", 0),
-        "status":           "published",
-    }
-    database.update_post(post_id, updates)
 
-    # Broadcast to all connected browser clients in real-time
-    _broadcast({**updates, "id": post_id,
-                "created_at": datetime.now(timezone.utc).isoformat()})
+    published_ids = []
+
+    # Retrieve verification data from the primary placeholder
+    primary_record = database.get_post(primary_post_id)
+    v_score = primary_record.get("verification_score", 0) if primary_record else 0
+    v_status = primary_record.get("verification_status", "pending") if primary_record else "pending"
+
+    for i, result in enumerate(safe_results):
+        if i == 0:
+            # First agent reuses the existing placeholder post_id
+            agent_post_id = primary_post_id
+        else:
+            # Subsequent agents get new post IDs
+            agent_post_id = str(uuid.uuid4())
+
+        post_data = {
+            "title": result["title"],
+            "domain": result.get("domain", payload.get("domain", "General")),
+            "summary": result["summary"],
+            "content": result.get("content", ""),
+            "key_points": result.get("key_points", []),
+            "why_this_matters": result.get("why_this_matters", ""),
+            "sources": result.get("sources", payload.get("sources", [])),
+            "confidence_score": result.get("confidence_score", 0),
+            "status": "published",
+            "agent_analyses": [result],  # Store just this agent's analysis
+        }
+
+        if i == 0:
+            # Update the existing placeholder
+            database.update_post(agent_post_id, post_data)
+        else:
+            # Create a new post for this agent
+            new_post = {
+                **post_data,
+                "id": agent_post_id,
+                "verification_score": v_score,
+                "verification_status": v_status,
+            }
+            database.save_post(new_post)
+
+        # Fetch the complete record from DB for broadcast
+        final_post = database.get_post(agent_post_id)
+        if not final_post:
+            final_post = {
+                **post_data,
+                "id": agent_post_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+        # Broadcast each post to connected browser clients
+        _broadcast(final_post)
+        published_ids.append(agent_post_id)
+
+        logger.info(
+            "[Controller] ✅ Agent '%s' (%s) → post_id=%s | confidence=%d",
+            result["role"], result["model"], agent_post_id,
+            result.get("confidence_score", 0),
+        )
 
     duration = (datetime.now(timezone.utc) - start_time).total_seconds()
     logger.info(
-        "[Controller] ✔ Published | post_id=%s | duration=%.2fs",
-        post_id, duration,
+        "[Controller] ✔ Published %d posts | duration=%.2fs",
+        len(published_ids), duration,
     )
     _broadcast_agent_status('idle')
 
     return {
-        "status":           "published",
-        "post_id":          post_id,
-        "message":          f"Post published successfully. Confidence: {generated.get('confidence_score', 0)}%",
-        "post":             {**updates, "id": post_id},
+        "status": "published",
+        "post_id": primary_post_id,
+        "post_ids": published_ids,
+        "message": (
+            f"Published {len(published_ids)} separate agent posts. "
+            f"Agents: {', '.join(r['role'] for r in safe_results)}."
+        ),
+        "agents_count": len(published_ids),
         "duration_seconds": round(duration, 2),
     }
 
@@ -135,24 +204,25 @@ def run_agent_pipeline(payload: dict, post_id: str | None = None) -> dict:
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _reject(post_id: str, payload: dict, reason: str,
-            start_time: datetime, generated: dict | None = None) -> dict:
+            start_time: datetime, agent_analyses: list | None = None) -> dict:
     """
     Update the pre-existing placeholder row to 'rejected'.
-    (The webhook route already inserted a row with this post_id; calling
-    save_post() a second time would raise a UNIQUE constraint error.)
     """
     duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
-    database.update_post(post_id, {
-        "title":            (generated or {}).get("title",
-                             payload.get("headline", "Rejected Post")),
-        "summary":          (generated or {}).get("summary", ""),
-        "key_points":       (generated or {}).get("key_points", []),
-        "why_this_matters": (generated or {}).get("why_this_matters", ""),
+    update_data = {
+        "title":            payload.get("headline", "Rejected Post"),
+        "summary":          "",
+        "key_points":       [],
+        "why_this_matters": "",
         "sources":          payload.get("sources", []),
         "confidence_score": 0,
         "status":           "rejected",
-    })
+    }
+    if agent_analyses:
+        update_data["agent_analyses"] = agent_analyses
+
+    database.update_post(post_id, update_data)
 
     logger.warning(
         "[Controller] ✘ Rejected | post_id=%s | reason=%s | duration=%.2fs",

@@ -3,7 +3,8 @@ database.py – SQLite-backed post storage for the Collective Intelligence Netwo
 
 Schema:
     posts(id, title, domain, summary, key_points, why_this_matters,
-          sources, confidence_score, created_at, status)
+          sources, confidence_score, created_at, status,
+          verification_score, verification_status)
 
 All JSON array fields (key_points, sources) are stored as JSON strings.
 """
@@ -22,18 +23,21 @@ DB_PATH = os.getenv("DB_PATH", "cin_posts.db")
 
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS posts (
-    id                TEXT PRIMARY KEY,
-    title             TEXT NOT NULL,
-    domain            TEXT NOT NULL,
-    summary           TEXT,
-    content           TEXT,          -- Full long-form article
-    key_points        TEXT,          -- JSON array
-    why_this_matters  TEXT,
-    sources           TEXT,          -- JSON array
-    confidence_score  REAL DEFAULT 0,
-    created_at        TEXT NOT NULL,
-    status            TEXT NOT NULL DEFAULT 'published',
-    headline_hash     TEXT           -- normalised lowercase headline for dedup
+    id                    TEXT PRIMARY KEY,
+    title                 TEXT NOT NULL,
+    domain                TEXT NOT NULL,
+    summary               TEXT,
+    content               TEXT,          -- Full long-form article
+    key_points            TEXT,          -- JSON array
+    why_this_matters      TEXT,
+    sources               TEXT,          -- JSON array
+    confidence_score      REAL DEFAULT 0,
+    created_at            TEXT NOT NULL,
+    status                TEXT NOT NULL DEFAULT 'published',
+    headline_hash         TEXT,          -- normalised lowercase headline for dedup
+    verification_score    REAL DEFAULT 0,
+    verification_status   TEXT DEFAULT 'pending',
+    agent_analyses        TEXT           -- JSON array of per-agent results
 );
 """
 
@@ -52,13 +56,25 @@ def get_connection() -> sqlite3.Connection:
 
 
 def _migrate_schema(conn: sqlite3.Connection) -> None:
-    """Ensure the schema is up-to-date (e.g. add 'content' column if missing)."""
+    """Ensure the schema is up-to-date (add missing columns)."""
     try:
         cur = conn.execute("PRAGMA table_info(posts)")
         columns = [row["name"] for row in cur.fetchall()]
         if "content" not in columns:
             logger.info("[DB] Migrating schema: adding 'content' column to 'posts' table...")
             conn.execute("ALTER TABLE posts ADD COLUMN content TEXT")
+            conn.commit()
+        if "verification_score" not in columns:
+            logger.info("[DB] Migrating schema: adding 'verification_score' column...")
+            conn.execute("ALTER TABLE posts ADD COLUMN verification_score REAL DEFAULT 0")
+            conn.commit()
+        if "verification_status" not in columns:
+            logger.info("[DB] Migrating schema: adding 'verification_status' column...")
+            conn.execute("ALTER TABLE posts ADD COLUMN verification_status TEXT DEFAULT 'pending'")
+            conn.commit()
+        if "agent_analyses" not in columns:
+            logger.info("[DB] Migrating schema: adding 'agent_analyses' column...")
+            conn.execute("ALTER TABLE posts ADD COLUMN agent_analyses TEXT")
             conn.commit()
     except Exception as e:
         logger.error("[DB] Migration failed: %s", e)
@@ -145,8 +161,9 @@ def save_post(post: dict) -> None:
             """
             INSERT INTO posts
                 (id, title, domain, summary, content, key_points, why_this_matters,
-                 sources, confidence_score, created_at, status, headline_hash)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 sources, confidence_score, created_at, status, headline_hash,
+                 verification_score, verification_status, agent_analyses)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 post["id"],
@@ -161,6 +178,9 @@ def save_post(post: dict) -> None:
                 created_at,
                 post.get("status", "published"),
                 headline_hash,
+                post.get("verification_score", 0),
+                post.get("verification_status", "pending"),
+                json.dumps(post.get("agent_analyses", []), ensure_ascii=False),
             ),
         )
         conn.commit()
@@ -176,15 +196,18 @@ def update_post(post_id: str, updates: dict) -> None:
               sources, confidence_score, status
     """
     field_map = {
-        "title":            ("title",            lambda v: v),
-        "domain":           ("domain",           lambda v: v),
-        "summary":          ("summary",          lambda v: v),
-        "content":          ("content",          lambda v: v),
-        "key_points":       ("key_points",       lambda v: json.dumps(v, ensure_ascii=False)),
-        "why_this_matters": ("why_this_matters", lambda v: v),
-        "sources":          ("sources",          lambda v: json.dumps(v, ensure_ascii=False)),
-        "confidence_score": ("confidence_score", lambda v: v),
-        "status":           ("status",           lambda v: v),
+        "title":               ("title",               lambda v: v),
+        "domain":              ("domain",              lambda v: v),
+        "summary":             ("summary",             lambda v: v),
+        "content":             ("content",             lambda v: v),
+        "key_points":          ("key_points",          lambda v: json.dumps(v, ensure_ascii=False)),
+        "why_this_matters":    ("why_this_matters",    lambda v: v),
+        "sources":             ("sources",             lambda v: json.dumps(v, ensure_ascii=False)),
+        "confidence_score":    ("confidence_score",    lambda v: v),
+        "status":              ("status",              lambda v: v),
+        "verification_score":  ("verification_score",  lambda v: v),
+        "verification_status": ("verification_status", lambda v: v),
+        "agent_analyses":      ("agent_analyses",      lambda v: json.dumps(v, ensure_ascii=False)),
     }
 
     set_clauses = []
@@ -214,6 +237,7 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     d = dict(row)
     d["key_points"] = json.loads(d.get("key_points") or "[]")
     d["sources"] = json.loads(d.get("sources") or "[]")
+    d["agent_analyses"] = json.loads(d.get("agent_analyses") or "[]")
     d.pop("headline_hash", None)
     return d
 

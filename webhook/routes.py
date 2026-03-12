@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 
 from utils.validation import validate_payload
+from utils.verification import compute_final_verification
 import database
 from agent.controller import run_agent_pipeline
 from agent.state import agent_state          # ← ready/busy gate
@@ -147,7 +148,7 @@ def receive_update():
             "message": error_msg,
         }), 400
 
-    # ── 4. Duplicate Detection ────────────────────────────────────────────────
+    # -- 4. Duplicate Detection ------------------------------------------------
     headline = data["headline"]
     if database.headline_exists(headline):
         logger.info("[Webhook] Duplicate headline ignored: %s", headline[:80])
@@ -157,13 +158,30 @@ def receive_update():
             "post_id": None,
         }), 200
 
-    # ── 5. Agent Ready-Check ──────────────────────────────────────────────────
+    # -- 5. Data Verification Layer --------------------------------------------
+    # Two-stage verification: deterministic checks + LLM plausibility.
+    # Rejected payloads never reach the AI generation pipeline.
+    with database.get_connection() as db_conn:
+        verification_score, verification_status = compute_final_verification(data, db_conn)
+
+    if verification_status == "rejected":
+        logger.warning(
+            "[Webhook] 400 - Verification rejected: %s (score=%.2f)",
+            headline[:80], verification_score,
+        )
+        return jsonify({
+            "status":             "rejected_unverified",
+            "message":            "Payload failed data verification.",
+            "verification_score": verification_score,
+        }), 400
+
+    # -- 6. Agent Ready-Check --------------------------------------------------
     # try_acquire() atomically flips the gate to BUSY and returns True,
     # OR returns False if the agent is already processing another article.
     if not agent_state.try_acquire(headline=headline):
         current = agent_state.current_headline() or "unknown"
         logger.warning(
-            "[Webhook] 503 – Agent busy (processing '%s'). Rejected: %s",
+            "[Webhook] 503 - Agent busy (processing '%s'). Rejected: %s",
             current[:60], headline[:60],
         )
         return jsonify({
@@ -172,22 +190,24 @@ def receive_update():
             "current_headline": current,
         }), 503
 
-    # ── 6. Pre-register placeholder ───────────────────────────────────────────
+    # -- 7. Pre-register placeholder -------------------------------------------
     post_id_hint = str(uuid.uuid4())
     placeholder = {
-        "id":               post_id_hint,
-        "title":            headline,
-        "domain":           data.get("domain", "General"),
-        "summary":          "",
-        "key_points":       [],
-        "why_this_matters": "",
-        "sources":          data.get("sources", []),
-        "confidence_score": 0,
-        "status":           "processing",
+        "id":                  post_id_hint,
+        "title":               headline,
+        "domain":              data.get("domain", "General"),
+        "summary":             "",
+        "key_points":          [],
+        "why_this_matters":    "",
+        "sources":             data.get("sources", []),
+        "confidence_score":    0,
+        "status":              "processing",
+        "verification_score":  verification_score,
+        "verification_status": verification_status,
     }
     database.save_post(placeholder)
 
-    # ── 7. Spawn Background Pipeline ──────────────────────────────────────────
+    # -- 8. Spawn Background Pipeline ------------------------------------------
     thread = threading.Thread(
         target=_run_pipeline_in_background,
         args=(data, post_id_hint),
@@ -198,13 +218,16 @@ def receive_update():
 
     duration_ms = (datetime.now(timezone.utc) - received_at).total_seconds() * 1000
     logger.info(
-        "[Webhook] 202 Accepted | headline=%s | gate_acquire_time=%.1fms",
-        headline[:80], duration_ms,
+        "[Webhook] 202 Accepted | headline=%s | verification=%s (%.2f) | gate_time=%.1fms",
+        headline[:80], verification_status, verification_score, duration_ms,
     )
 
-    # ── 8. Return Immediately ─────────────────────────────────────────────────
+    # -- 9. Return Immediately -------------------------------------------------
     return jsonify({
-        "status":  "accepted",
-        "message": "Agent is now processing your article. It is busy until the post is published.",
-        "post_id": post_id_hint,
+        "status":              "accepted",
+        "message":             "Agent is now processing your article. It is busy until the post is published.",
+        "post_id":             post_id_hint,
+        "verification_score":  verification_score,
+        "verification_status": verification_status,
     }), 202
+
